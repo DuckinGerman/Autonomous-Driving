@@ -58,39 +58,39 @@ Image Plane
 
 The LiDAR points are first transformed into the ego vehicle frame using the sensor extrinsic calibration.
 
-$begin:math:display$
+$$
 T\_\{ego\}\^\{lidar\}
 \=
 \\begin\{bmatrix\}
 R \& t\\\\
 0 \& 1
 \\end\{bmatrix\}
-$end:math:display$
+$$
 
 where
 
-- $begin:math:text$R$end:math:text$ denotes the rotation matrix.
-- $begin:math:text$t$end:math:text$ denotes the translation vector.
+- $$R$$ denotes the rotation matrix.
+- $$t$$ denotes the translation vector.
 
 ---
 
 The inverse camera transformation is
 
-$begin:math:display$
+$$
 T\_\{camera\}\^\{ego\}
 \=
 \\left\(T\_\{ego\}\^\{camera\}\\right\)\^\{\-1\}
-$end:math:display$
+$$
 
 The complete transformation from LiDAR to Camera becomes
 
-$begin:math:display$
+$$
 T\_\{camera\}\^\{lidar\}
 \=
 T\_\{camera\}\^\{ego\}
 \\cdot
 T\_\{ego\}\^\{lidar\}
-$end:math:display$
+$$
 
 ---
 
@@ -98,32 +98,32 @@ $end:math:display$
 
 After transforming every LiDAR point into the camera coordinate system,
 
-$begin:math:display$
+$$
 P\_c\=\(X\_c\,Y\_c\,Z\_c\)
-$end:math:display$
+$$
 
 only points satisfying
 
-$begin:math:display$
+$$
 Z\_c\>0
-$end:math:display$
+$$
 
 are kept.
 
 The projection into image coordinates is performed using the camera intrinsic matrix
 
-$begin:math:display$
+$$
 K\=
 \\begin\{bmatrix\}
 f\_x\&0\&c\_x\\\\
 0\&f\_y\&c\_y\\\\
 0\&0\&1
 \\end\{bmatrix\}
-$end:math:display$
+$$
 
 The image pixels are computed as
 
-$begin:math:display$
+$$
 \\begin\{bmatrix\}
 u\\\\
 v\\\\
@@ -136,15 +136,15 @@ X\_c\\\\
 Y\_c\\\\
 Z\_c
 \\end\{bmatrix\}
-$end:math:display$
+$$
 
 followed by
 
-$begin:math:display$
+$$
 u\=\\frac\{u\}\{Z\_c\}\,
 \\qquad
 v\=\\frac\{v\}\{Z\_c\}
-$end:math:display$
+$$
 
 ---
 
@@ -152,9 +152,9 @@ $end:math:display$
 
 The camera-frame depth
 
-$begin:math:display$
+$$
 Depth \= Z\_c
-$end:math:display$
+$$
 
 is used for visualization.
 
