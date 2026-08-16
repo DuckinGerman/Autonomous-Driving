@@ -1,229 +1,258 @@
-# V1 - nuScenes Dataset Explorer
+# V2 - LiDAR-to-Camera Projection
 
 ## Overview
 
-The goal of V1 is **not** to build a perception model, but to understand the data organization of a modern autonomous driving dataset.
+The objective of V2 is to implement the complete geometric projection pipeline between LiDAR and camera without relying on existing projection utilities.
 
-This project explores the nuScenes mini dataset by parsing the complete data pipeline from raw sensor data to vehicle poses.
+Starting from the raw sensor calibration provided by the nuScenes dataset, the entire transformation pipeline is implemented from scratch, including coordinate transformations, homogeneous matrices, camera projection and depth visualization.
 
-The implemented pipeline is:
+---
+
+## Pipeline
 
 ```
-Scene
-    ↓
-Sample
-    ↓
-Sample Data
-    ├── Camera
-    ├── LiDAR
-    └── Radar
-    ↓
-Calibrated Sensor
-    ↓
-Ego Pose
+LiDAR Point Cloud
+        │
+        ▼
+LiDAR Calibration
+        │
+        ▼
+Ego Vehicle Coordinate
+        │
+        ▼
+Camera Calibration
+        │
+        ▼
+Camera Coordinate
+        │
+        ▼
+Camera Intrinsic Matrix
+        │
+        ▼
+Image Plane
+        │
+        ▼
+Depth Visualization
 ```
 
 ---
 
-## Dataset
+## Coordinate Systems
 
-- Dataset: nuScenes v1.0-mini
-- Number of scenes: **10**
-- Number of samples: **404**
-- Sensors:
-  - 6 Cameras
-  - 1 LiDAR
-  - 5 Radars
+```
+LiDAR Frame
+        │
+        ▼
+Ego Frame
+        │
+        ▼
+Camera Frame
+        │
+        ▼
+Image Plane
+```
+
+---
+
+## Homogeneous Transformation
+
+The LiDAR points are first transformed into the ego vehicle frame using the sensor extrinsic calibration.
+
+$begin:math:display$
+T\_\{ego\}\^\{lidar\}
+\=
+\\begin\{bmatrix\}
+R \& t\\\\
+0 \& 1
+\\end\{bmatrix\}
+$end:math:display$
+
+where
+
+- $begin:math:text$R$end:math:text$ denotes the rotation matrix.
+- $begin:math:text$t$end:math:text$ denotes the translation vector.
+
+---
+
+The inverse camera transformation is
+
+$begin:math:display$
+T\_\{camera\}\^\{ego\}
+\=
+\\left\(T\_\{ego\}\^\{camera\}\\right\)\^\{\-1\}
+$end:math:display$
+
+The complete transformation from LiDAR to Camera becomes
+
+$begin:math:display$
+T\_\{camera\}\^\{lidar\}
+\=
+T\_\{camera\}\^\{ego\}
+\\cdot
+T\_\{ego\}\^\{lidar\}
+$end:math:display$
+
+---
+
+## Camera Projection
+
+After transforming every LiDAR point into the camera coordinate system,
+
+$begin:math:display$
+P\_c\=\(X\_c\,Y\_c\,Z\_c\)
+$end:math:display$
+
+only points satisfying
+
+$begin:math:display$
+Z\_c\>0
+$end:math:display$
+
+are kept.
+
+The projection into image coordinates is performed using the camera intrinsic matrix
+
+$begin:math:display$
+K\=
+\\begin\{bmatrix\}
+f\_x\&0\&c\_x\\\\
+0\&f\_y\&c\_y\\\\
+0\&0\&1
+\\end\{bmatrix\}
+$end:math:display$
+
+The image pixels are computed as
+
+$begin:math:display$
+\\begin\{bmatrix\}
+u\\\\
+v\\\\
+1
+\\end\{bmatrix\}
+\=
+K
+\\begin\{bmatrix\}
+X\_c\\\\
+Y\_c\\\\
+Z\_c
+\\end\{bmatrix\}
+$end:math:display$
+
+followed by
+
+$begin:math:display$
+u\=\\frac\{u\}\{Z\_c\}\,
+\\qquad
+v\=\\frac\{v\}\{Z\_c\}
+$end:math:display$
+
+---
+
+## Depth Visualization
+
+The camera-frame depth
+
+$begin:math:display$
+Depth \= Z\_c
+$end:math:display$
+
+is used for visualization.
+
+Near points are rendered using warm colors,
+while distant points are rendered using cool colors.
+
+---
+
+## Implementation
+
+Implemented from scratch
+
+- Calibration parser
+- Homogeneous transformation matrix
+- Matrix inversion
+- LiDAR → Ego transformation
+- Ego → Camera transformation
+- Camera intrinsic projection
+- Pixel filtering
+- Depth coloring
+- Multi-frame rendering
+
+---
+
+## Results
+
+### Camera Image
+
+![](outputs/v1/cam_front.png)
+
+---
+
+### LiDAR Bird's Eye View
+
+![](outputs/v1/lidar_bev.png)
+
+---
+
+### LiDAR Projection
+
+![](outputs/v2/lidar_on_camera.png)
+
+---
+
+### Depth Visualization
+
+![](outputs/v2/lidar_depth_on_camera.png)
+
+---
+
+### Projection Animation
+
+![](outputs/v2/projection.gif)
 
 ---
 
 ## Project Structure
 
 ```
-Autonomous-Driving-AI
+src/
+├── dataset/
+│     └── nuscenes_parser.py
 │
-├── datasets/
-├── outputs/
-│   └── v1/
-│       ├── cam_front.png
-│       └── lidar_bev.png
+├── geometry/
+│     ├── calibration.py
+│     ├── transform.py
+│     └── projection.py
 │
-├── scripts/
-│   └── explore_dataset.py
-│
-└── src/
+└── visualization/
+
+scripts/
+├── explore_dataset.py
+└── make_gif.py
 ```
 
 ---
 
-# What has been implemented
+## Summary
 
-## 1. Camera
+This version implements the complete geometric projection pipeline between LiDAR and camera without relying on any existing projection functions.
 
-The first front-view camera image was successfully loaded and visualized.
+The project establishes the mathematical foundation required for modern autonomous driving perception systems, including:
 
-Output:
-
-```
-CAM_FRONT
-↓
-JPEG Image
-```
-
-Result:
-
-`outputs/v1/cam_front.png`
-
----
-
-## 2. LiDAR
-
-The LiDAR point cloud was loaded.
-
-```
-Point Cloud Shape
-
-(4, N)
-
-x
-y
-z
-intensity
-```
-
-The x-y coordinates were projected into Bird's Eye View (BEV).
-
-Result:
-
-`outputs/v1/lidar_bev.png`
-
----
-
-## 3. Radar
-
-Radar data was successfully parsed.
-
-```
-Radar Shape
-
-(18, 74)
-```
-
-Meaning:
-
-- 74 radar detections
-- Each detection contains 18 attributes
-- Radar additionally provides motion-related information such as velocity.
-
----
-
-## 4. Camera Calibration
-
-Camera calibration parameters were extracted.
-
-### Translation
-
-```
-[1.70, 0.02, 1.51]
-```
-
-Meaning:
-
-The camera is mounted
-
-- 1.70 m in front of the ego vehicle
-- 0.02 m to the left/right
-- 1.51 m above the ground
-
----
-
-### Rotation
-
-Quaternion describing the camera orientation relative to the ego vehicle.
-
----
-
-### Camera Intrinsic
-
-```
-fx  0  cx
-0  fy  cy
-0   0   1
-```
-
-Meaning:
-
-The intrinsic matrix projects 3D camera coordinates into image pixels.
-
----
-
-## 5. Ego Pose
-
-Vehicle pose in the global map.
-
-Example:
-
-```
-Translation
-
-[411.42,
-1181.20,
-0.00]
-```
-
-Meaning:
-
-The ego vehicle is located at this position in the global coordinate system.
-
----
-
-# Coordinate Frames
-
-```
-Camera Frame
-        │
-        ▼
-Calibrated Sensor
-        │
-        ▼
-Ego Vehicle Frame
-        │
-        ▼
-Global Frame
-```
-
-This coordinate hierarchy is the geometric foundation for 3D perception algorithms.
-
----
-
-# V1 Summary
-
-In this version, no deep learning model is used.
-
-The objective is to understand
-
-- dataset organization
-- sensor modalities
-- calibration
-- coordinate systems
-- ego poses
-
-These components serve as the basis for future versions involving
-
-- Camera-LiDAR projection
-- Sensor Fusion
 - BEV perception
-- Trajectory prediction
+- Occupancy prediction
+- 3D object detection
+- Sensor fusion
+- World models
 
 ---
 
-# Next Version
+## Next Version
 
-**V2 – Camera-LiDAR Geometry**
+**V3 - Bird's Eye View Representation**
 
-Goals:
+Upcoming topics include
 
-- Parse LiDAR calibration
-- Transform LiDAR points into the ego frame
-- Transform ego frame into camera frame
-- Project LiDAR points onto the camera image
+- BEV grid generation
+- Occupancy map construction
+- LiDAR rasterization
+- Camera-BEV representation
