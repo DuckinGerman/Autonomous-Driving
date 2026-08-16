@@ -193,42 +193,9 @@ Implemented from scratch
 
 ---
 
-### LiDAR Projection
-
-![](outputs/v2/lidar_on_camera.png)
-
----
-
-### Depth Visualization
-
-![](outputs/v2/lidar_depth_on_camera.png)
-
----
-
 ### Projection Animation
 
 ![](outputs/v2/projection.gif)
-
----
-
-## Project Structure
-
-```
-src/
-├── dataset/
-│     └── nuscenes_parser.py
-│
-├── geometry/
-│     ├── calibration.py
-│     ├── transform.py
-│     └── projection.py
-│
-└── visualization/
-
-scripts/
-├── explore_dataset.py
-└── make_gif.py
-```
 
 ---
 
