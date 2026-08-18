@@ -1,225 +1,257 @@
-# V2 - LiDAR-to-Camera Projection
+# V3 - LiDAR BEV Representation
 
 ## Overview
 
-The objective of V2 is to implement the complete geometric projection pipeline between LiDAR and camera without relying on existing projection utilities.
+V3 converts raw LiDAR point clouds into a structured Bird's-Eye-View representation.
 
-Starting from the raw sensor calibration provided by the nuScenes dataset, the entire transformation pipeline is implemented from scratch, including coordinate transformations, homogeneous matrices, camera projection and depth visualization.
+Unlike the simple scatter visualization used in V1, this version rasterizes irregular LiDAR points into a fixed spatial grid and constructs multiple BEV feature channels.
 
----
+The pipeline is:
 
-## Pipeline
-
-```
-LiDAR Point Cloud
-        │
-        ▼
-LiDAR Calibration
-        │
-        ▼
-Ego Vehicle Coordinate
-        │
-        ▼
-Camera Calibration
-        │
-        ▼
-Camera Coordinate
-        │
-        ▼
-Camera Intrinsic Matrix
-        │
-        ▼
-Image Plane
-        │
-        ▼
-Depth Visualization
+```text
+Raw LiDAR Point Cloud
+        ↓
+ROI Filtering
+        ↓
+Metric Coordinates
+        ↓
+BEV Grid Coordinates
+        ↓
+Height Map
+Density Map
+Intensity Map
+        ↓
+Normalization
+        ↓
+3-Channel BEV Tensor
 ```
 
 ---
 
-## Coordinate Systems
+## BEV Configuration
 
-```
-LiDAR Frame
-        │
-        ▼
-Ego Frame
-        │
-        ▼
-Camera Frame
-        │
-        ▼
-Image Plane
+The BEV region is defined as:
+
+```text
+X range: -20 m to 50 m
+Y range: -25 m to 25 m
+Resolution: 0.1 m / pixel
 ```
 
----
+This results in:
 
-## Homogeneous Transformation
+```text
+BEV Height: 700
+BEV Width:  500
+```
 
-The LiDAR points are first transformed into the ego vehicle frame using the sensor extrinsic calibration.
+Therefore, the final tensor has the shape:
 
-$$
-T\_\{ego\}\^\{lidar\}
-\=
-\\begin\{bmatrix\}
-R \& t\\\\
-0 \& 1
-\\end\{bmatrix\}
-$$
-
-where
-
-- $$R$$ denotes the rotation matrix.
-- $$t$$ denotes the translation vector.
+```text
+(3, 700, 500)
+```
 
 ---
 
-The inverse camera transformation is
+## Coordinate Rasterization
 
-$$
-T\_\{camera\}\^\{ego\}
-\=
-\\left\(T\_\{ego\}\^\{camera\}\\right\)\^\{\-1\}
-$$
+Each LiDAR point is originally represented in metric coordinates:
 
-The complete transformation from LiDAR to Camera becomes
+```text
+(x, y, z)
+```
 
-$$
-T\_\{camera\}\^\{lidar\}
-\=
-T\_\{camera\}\^\{ego\}
-\\cdot
-T\_\{ego\}\^\{lidar\}
-$$
+The x-y position is converted into a discrete BEV grid location:
 
----
+```text
+(x, y)
+   ↓
+(row, column)
+```
 
-## Camera Projection
-
-After transforming every LiDAR point into the camera coordinate system,
-
-$$
-P\_c\=\(X\_c\,Y\_c\,Z\_c\)
-$$
-
-only points satisfying
-
-$$
-Z\_c\>0
-$$
-
-are kept.
-
-The projection into image coordinates is performed using the camera intrinsic matrix
-
-$$
-K\=
-\\begin\{bmatrix\}
-f\_x\&0\&c\_x\\\\
-0\&f\_y\&c\_y\\\\
-0\&0\&1
-\\end\{bmatrix\}
-$$
-
-The image pixels are computed as
-
-$$
-\\begin\{bmatrix\}
-u\\\\
-v\\\\
-1
-\\end\{bmatrix\}
-\=
-K
-\\begin\{bmatrix\}
-X\_c\\\\
-Y\_c\\\\
-Z\_c
-\\end\{bmatrix\}
-$$
-
-followed by
-
-$$
-u\=\\frac\{u\}\{Z\_c\}\,
-\\qquad
-v\=\\frac\{v\}\{Z\_c\}
-$$
+Only points inside the configured region of interest are retained.
 
 ---
 
-## Depth Visualization
+## Height Map
 
-The camera-frame depth
+For each BEV cell, the maximum LiDAR height is stored.
 
-$$
-Depth \= Z\_c
-$$
+```text
+Multiple LiDAR points
+        ↓
+Same BEV cell
+        ↓
+Maximum z value
+        ↓
+Height feature
+```
 
-is used for visualization.
+The height values are clipped to a predefined range and normalized to `[0, 1]`.
 
-Near points are rendered using warm colors,
-while distant points are rendered using cool colors.
+Result:
 
----
-
-## Implementation
-
-Implemented from scratch
-
-- Calibration parser
-- Homogeneous transformation matrix
-- Matrix inversion
-- LiDAR → Ego transformation
-- Ego → Camera transformation
-- Camera intrinsic projection
-- Pixel filtering
-- Depth coloring
-- Multi-frame rendering
+![BEV Height Map](outputs/v3/bev_height_map.png)
 
 ---
 
-## Results
+## Density Map
 
-### Camera Image
+The density channel represents the number of LiDAR points falling into each BEV cell.
 
-![](outputs/v1/cam_front.png)
+A logarithmic transformation is used to reduce the influence of highly populated cells:
+
+```text
+Point count
+    ↓
+log(1 + count)
+    ↓
+Normalization
+```
+
+Result:
+
+![BEV Density Map](outputs/v3/bev_density_map.png)
 
 ---
 
-### LiDAR Bird's Eye View
+## Intensity Map
 
-![](outputs/v1/lidar_bev.png)
+The intensity channel stores the mean LiDAR return intensity for each occupied BEV cell.
+
+```text
+LiDAR intensity values
+        ↓
+Average per cell
+        ↓
+Normalization
+```
+
+Result:
+
+![BEV Intensity Map](outputs/v3/bev_intensity_map.png)
 
 ---
 
-### Projection Animation
+## 3-Channel BEV Tensor
 
-![](outputs/v2/projection.gif)
+The three feature maps are stacked into a structured tensor:
+
+```text
+Channel 0: Height
+Channel 1: Density
+Channel 2: Intensity
+```
+
+Final representation:
+
+```text
+BEV Tensor Shape: (3, 700, 500)
+
+Minimum value: 0.0
+Maximum value: 1.0
+```
+
+This representation can be directly consumed by CNN- or Transformer-based perception models.
 
 ---
 
-## Summary
+## RGB Visualization
 
-This version implements the complete geometric projection pipeline between LiDAR and camera without relying on any existing projection functions.
+For visualization purposes, the three channels are mapped to RGB:
 
-The project establishes the mathematical foundation required for modern autonomous driving perception systems, including:
+```text
+R → Height
+G → Density
+B → Intensity
+```
 
-- BEV perception
-- Occupancy prediction
-- 3D object detection
-- Sensor fusion
-- World models
+Result:
+
+![BEV RGB Representation](outputs/v3/bev_rgb.png)
+
+---
+
+## Important Distinction
+
+This version implements a handcrafted LiDAR-based BEV representation.
+
+It should not be confused with learned camera-to-BEV representations such as BEVFormer.
+
+```text
+V3:
+
+LiDAR
+  ↓
+Rasterization
+  ↓
+Height / Density / Intensity
+  ↓
+BEV Tensor
+```
+
+Modern learned BEV models typically follow:
+
+```text
+Multi-Camera Images
+        ↓
+Image Backbone
+        ↓
+Feature Transformation
+        ↓
+Learned BEV Features
+```
+
+V3 provides the geometric and representation foundation for the later integration of modern BEV perception models.
+
+---
+
+## Project Structure
+
+```text
+src/
+└── bev/
+    ├── __init__.py
+    └── rasterizer.py
+
+scripts/
+└── generate_bev.py
+
+outputs/
+└── v3/
+    ├── bev_grid_test.png
+    ├── bev_height_map.png
+    ├── bev_density_map.png
+    ├── bev_intensity_map.png
+    ├── bev_rgb.png
+    └── bev_tensor.npy
+```
+
+---
+
+## V3 Summary
+
+Implemented:
+
+- LiDAR ROI filtering
+- Metric-to-grid coordinate conversion
+- BEV rasterization
+- Height map generation
+- Density map generation
+- Intensity map generation
+- Feature normalization
+- 3-channel BEV tensor construction
+- RGB BEV visualization
 
 ---
 
 ## Next Version
 
-**V3 - Bird's Eye View Representation**
+**V4 - Modern BEV Perception and Trajectory**
 
-Upcoming topics include
+The next version will integrate an existing pretrained autonomous-driving model and focus on:
 
-- BEV grid generation
-- Occupancy map construction
-- LiDAR rasterization
-- Camera-BEV representation
+- learned BEV representations
+- pretrained model inference
+- trajectory prediction
+- visualization and analysis
